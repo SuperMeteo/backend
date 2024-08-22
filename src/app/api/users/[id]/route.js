@@ -1,16 +1,12 @@
-// src/app/api/users/[id]/route.js
 import { Client } from 'pg';
-import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
 });
 client.connect();
 
-// Handle GET request
 export async function GET(request, { params }) {
   const { id } = params;
   try {
@@ -31,37 +27,30 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   const { id } = params;
   try {
-    const { firstname, lastname, username, password } = await request.json();
+    const body = await request.json();
+    const { name, email, age } = body; // Assuming you want to update these fields
 
-    let hashedPassword = null;
-    if (password) {
-      hashedPassword = await bcrypt.hash(password, 10);
+    const result = await client.query(
+      'UPDATE tbl_users SET name = $1, email = $2, age = $3 WHERE id = $4 RETURNING *',
+      [name, email, age, id]
+    );
+
+    if (result.rowCount === 0) {
+      return new Response(JSON.stringify({ error: "User not found" }), {
+        status: 404,
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+      });
     }
 
-    const query = `
-      UPDATE tbl_users
-      SET firstname = $1, lastname = $2, username = $3, ${hashedPassword ? 'password = $4,' : ''}
-      updated_at = NOW()
-      WHERE id = $${hashedPassword ? '5' : '4'}
-      RETURNING *;
-    `;
-
-    const values = [firstname, lastname, username];
-    if (hashedPassword) {
-      values.push(hashedPassword);
-    }
-    values.push(id);
-
-    const res = await client.query(query, values);
-    return new Response(JSON.stringify(res.rows[0]), {
+    return new Response(JSON.stringify(result.rows[0]), {
       status: 200,
       headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error updating user data:', error);
-    return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     });
   }
 }
